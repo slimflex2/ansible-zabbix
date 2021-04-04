@@ -1,0 +1,109 @@
+- name: Set hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+
+
+- name: Install Prerequisites
+  yum:
+    name:
+     - httpd
+     - epel-release
+     - mariadb-server
+     - mariadb
+     - MySQL-python
+     - "{{zabbix_repo}}"
+     - "{{remi_repo}}"
+    update_cache: yes
+    
+- name: Start MariaDB
+  service:
+    name: mariadb
+    state: started
+    enabled: yes
+   
+- name: enable php72
+  shell: yum-config-manager --enable "{{php_version}}" 
+
+
+- name: Install Prerequisites
+  yum:
+    name:
+     - php-mysql
+     - php 
+     - centos-release-scl
+     - zabbix-server-mysql 
+     - zabbix-agent
+    update_cache: yes
+
+- name: enable rhel-server
+  shell: yum-config-manager --enable rhel-server-rhscl-7-rpms
+
+- name: enable frontend
+  lineinfile:
+    path: /etc/yum.repos.d/zabbix.repo 
+    regexp: "^enabled=0"
+    line: 'enabled=1'
+  
+- name: Install Prerequisites
+  yum:
+    name:
+     - zabbix-web-mysql-scl 
+     - zabbix-apache-conf-scl
+    update_cache: yes
+
+- name: creating changes.sh
+  template:
+    src: "changes.sh"
+    dest: "/tmp/changes.sh"
+
+- name: Create a new database with name 'bobdata'
+  mysql_db:
+    name: zabbix
+    collation: utf8_bin  
+    encoding: utf8
+    state: present
+
+- name: Create database user with password and all database privileges and 'WITH GRANT OPTION'
+  become_user: root
+  mysql_user:
+    name: zabbix
+    password: "@john"
+    priv: '*.*:ALL,GRANT'
+    state: present
+
+- name: create.sql.gz
+  become_user: root
+  shell: zcat create.sql.gz | mysql -u root zabbix
+  args:
+    chdir: /usr/share/doc/zabbix-server-mysql-5.0.8
+
+- name:
+  shell: source /tmp/changes.sh
+
+- name: Start zabbix-server
+  service:
+    name: zabbix-server 
+    state: restarted
+    enabled: yes
+
+
+- name: Start zabbix-agent
+  service:
+    name: zabbix-agent
+    state: restarted
+    enabled: yes
+
+- name: Start Apache
+  service:
+    name: httpd
+    state: restarted
+    enabled: yes
+
+- name: Start rh-php72-php-fpm
+  service:
+    name: rh-php72-php-fpm
+    state: restarted
+    enabled: yes
+
+ 
+
